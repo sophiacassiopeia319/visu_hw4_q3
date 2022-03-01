@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        .chart-container {
+            max-width: 1050px;
+            /*border: 3px solid red;*/
+            margin: 0 auto;
+            /* auto centers the div */
+            font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        }
+
+        svg {
+            /*border: 2px solid purple;*/
+            overflow: visible;
+        }
+
+
+        h1 {
+            /*border: 2px solid green;*/
+            
+        }
+
+        .x .tick line {
+            stroke: rgba(0, 0, 0, .2);
+        }
+
+        .y .tick line {
+            stroke: rgba(0, 0, 0, .2);
+        }
+
+        .x .domain {
+            display: none;
+        }
+
+        .y .domain {
+            display: none;
+        }
+
+
+        .highlight {
+            color: orange;
+            text-decoration: underline;
+        }
+
+        /*.pop-up {
+           position: absolute;
+            border: 1px solid black;
+            border-radius: 1px;
+            line-height: 1.2;
+            width: 200px;
+            pointer-events: none;
+            background-color: white;
+            padding: 10px;
+            opacity: 0;
+        }*/
+
+        .annotation {
+            font-size: 15px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-style: italic;
+            font-weight: 200;
+
+        }
+
+        .highlight {
+            color: orange;
+            text-decoration: underline;
+        }
+    </style>
+    <!-- add your script blocks at the end -->
+
+</head>
+
+<body>
+    <div class="chart-container">
+        <h1 class="headline">
+            Map of Children <span class="highlight">Under Poverty's Number</span>
+        </h1>
+
+        <svg width="1050px" height="500px">
+
+        </svg>
+
+        <div class="pop-up">
+            </div>
+    </div>
+</body>
+
+
+<!-- we're using d3 version 6 (the latest version) for all out work -->
+<script src="https://d3js.org/d3.v6.min.js"></script>
+
+<!-- load topojson script -->
+<script src="https://unpkg.com/topojson@3"></script>
+
+<script>
+    console.log({ d3 })
+    console.log({ topojson })
+
+    // //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+    // Promise.all([ //waits for all the data to load, then when loaded will return it all in one array called res
+    //     d3.json('county-topo-3.json'),
+    // ])
+    //     .then(ready)
+    //     .catch((err) => {
+    //         console.log(err);
+    //     });
+
+    let width = 1050;
+    let height = 700;
+    let svg = d3. select('body').select('svg')
+
+
+
+    let margin = { top: 10, right: 10, bottom: 0, left: 20};
+
+
+    d3.json("output.json").then(function(data) {
+        console.log("loaded")
+        console.log(data)
+
+        let counties = topojson.feature(data, data.objects.county)
+        let states = topojson.feature(data, data.objects.state)
+        console.log(counties)
+
+        let projection = d3.geoIdentity()
+            .fitSize([width, height], states)
+            .reflectY(true)
+        
+        let path = d3.geoPath(projection)
+        
+        let popup = d3.select(".pop-up");
+
+        svg.append("g")
+            .attr("class", "states")
+            .selectAll("path")
+            .data(states.features)
+            .join("path")
+            .attr("d", path)
+            .attr("fill", "lightgrey")
+            .attr("stroke", "white")
+        
+        let circles = svg.append("g")
+            .selectAll(".circles")
+            .data(counties.features.filter(d => d.geometry !=null).sort((a,b) => d3.descending(a.properties.pop_18_in_poverty, b.properties.pop_18_in_poverty)))
+            .join("circle")
+            .attr("class", function(d){ return "circles p-" + d.properties.GEOID})
+            .attr("fill", "#c0cad8")
+            .attr("stroke", "#333333")
+            .attr("fill-opacity", 0.5)
+            .attr("stroke-width", 0.5)
+            .attr("transform", d => `translate(${projection([d.geometry.coordinates[0], d.geometry.coordinates[1]])})`)
+            .attr("r", d=> Math.sqrt(d.properties.pop_18_in_poverty /150))
+            
+
+            // let h1 = d3.select("chart-container").on("click", update)
+
+            let hed = d3.select(".headline").on("click", update)
+
+        // let popup = d3.select(".pop-up");
+
+            function update() {
+
+                    hed.html("Map of Children Under Poverty's Number")
+                    hed.html("Map of Children <span class=‘highlight’>Under Poverty's Number</span>")
+
+                var t = d3.transition() //https://github.com/d3/d3-transition
+                    .duration(500)
+                    // .ease(d3.easeLinear); // play with differeint easing functions https://github.com/d3/d3-ease
+                    
+                // circles
+                //     .transition(t)
+                //     // .attr("transform", function (d) { return transform(d.ses) }) //callback to access the data, position according to x axis
+                //     // .attr("cy", function (d) { return y(d[sel_var_state]) })
+                //     .attr("r", function (d) { return r(d.properties.pop_18_in_poverty /150) })
+
+            }
+
+
+            circles.on("mouseover", (event, d) => {
+
+                circles
+                    .style("stroke", "#333333")
+                    .style("stroke-width", .5)
+                    .style("fill", "#c0cad8")
+                    .style("fill-opacity", .5)
+
+                svg.select(".p-" + d.properties.GEOID)
+                    .style("stroke", "black")
+                    .style("stroke-width", 2)
+                    .style("fill", "red")
+                    .style("fill-opacity", 1)
+                    .raise()
+
+                let reScaleLang = d3.scaleThreshold()
+                    .domain([0]) //make sure to put this in brackets!
+                    .range(["below", "above"])
+
+                let diff = +d.pop_18_in_poverty - 3
+                let lang = "In " + d.properties.Geo_QName + ", " + " the number of children upder poverty is " + d.properties.pop_18_in_poverty 
+                // lang += d3.format(".1f")(Math.abs(diff)) + " years " + reScaleLang(diff) 
+
+            
+
+                popup
+                    .style("opacity", 1)
+                    .style("left", (event.x - 100) + "px")
+                    .style("top", (event.y - 150) + "px")
+                    .style("position", "absolute")
+                    .style("border", "1px solid black")
+                    .style("border-radius", "1px")
+                    .style("line-height", 1.2)
+                    .style("width", "200px")
+                    //pointer-events: none;
+                    .style("background-color", "white")
+                    .style("padding", "10px")
+                    .html(lang)
+
+            })
+
+
+            circles.on("mouseout", (event, d) => {
+                // console.log(event)
+                circles
+                    .style("stroke", "#333333")
+                    .style("stroke-width", .5)
+                    .style("fill", "#c0cad8")
+
+                popup
+                    .style("opacity", 0)
+
+    })
+
+
+}) //end function
+   
+
+</script>
